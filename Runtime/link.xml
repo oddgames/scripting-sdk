@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tells Unity's IL2CPP managed-stripping pass to keep symbols that scripts will
+  resolve via reflection at runtime. Without these preserves, IL2CPP can strip
+  methods/types that aren't statically referenced by game code, causing scripts
+  that call them to fail with MissingMethodException at runtime.
+
+  Conservative defaults: preserve LINQ (the most-used extension surface), the
+  primitives + Convert + Math (commonly used in static calls), and reflection
+  itself (since the VM uses MethodInfo.Invoke).
+
+  Game projects that want to expose more of their own assemblies to scripts
+  should add their own link.xml entries — this file only covers BCL surface.
+-->
+<linker>
+  <!-- The scripting runtime itself — never strip. -->
+  <assembly fullname="ODDGames.Scripting" preserve="all" />
+  <assembly fullname="ODDGames.Scripting.Unity" preserve="all" />
+
+  <!-- HostedEditorClient's ClientWebSocket transport is only reached through IHostedTransport. -->
+  <assembly fullname="System.Net.WebSockets" preserve="all" />
+  <assembly fullname="System.Net.WebSockets.Client" preserve="all" />
+
+  <!-- LINQ extension methods are discovered via reflection; preserve to keep them callable. -->
+  <assembly fullname="System.Linq">
+    <type fullname="System.Linq.Enumerable" preserve="all" />
+    <type fullname="System.Linq.Queryable" preserve="all" />
+  </assembly>
+
+  <!-- Common BCL surface that diagnostic scripts call into. -->
+  <assembly fullname="System.Runtime">
+    <type fullname="System.Math" preserve="all" />
+    <type fullname="System.Convert" preserve="all" />
+    <type fullname="System.String" preserve="all" />
+    <type fullname="System.Int32" preserve="all" />
+    <type fullname="System.Int64" preserve="all" />
+    <type fullname="System.Single" preserve="all" />
+    <type fullname="System.Double" preserve="all" />
+    <type fullname="System.Boolean" preserve="all" />
+    <type fullname="System.Object" preserve="all" />
+    <type fullname="System.Array" preserve="all" />
+    <type fullname="System.Exception" preserve="all" />
+  </assembly>
+
+  <!-- Generic collections — instance methods on List<T>, Dictionary<K,V> resolve via reflection. -->
+  <assembly fullname="System.Collections">
+    <type fullname="System.Collections.Generic.List`1" preserve="all" />
+    <type fullname="System.Collections.Generic.Dictionary`2" preserve="all" />
+    <type fullname="System.Collections.Generic.HashSet`1" preserve="all" />
+    <type fullname="System.Collections.Generic.IEnumerable`1" preserve="all" />
+    <type fullname="System.Collections.Generic.IEnumerator`1" preserve="all" />
+  </assembly>
+
+  <!-- StringBuilder — common in scripts that build messages. -->
+  <assembly fullname="System.Text.RegularExpressions">
+    <type fullname="System.Text.RegularExpressions.Regex" preserve="all" />
+  </assembly>
+  <assembly fullname="System.ObjectModel">
+    <type fullname="System.Text.StringBuilder" preserve="all" />
+  </assembly>
+</linker>

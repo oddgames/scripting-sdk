@@ -1,0 +1,975 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<doc>
+  <assembly>
+    <name>ODDGames.Scripting.Unity</name>
+  </assembly>
+  <members>
+    <member name="T:ODDGames.Scripting.Unity.Modding.AiDescribePanel">
+      <summary>
+            The in-game "Describe it" panel over the game (<see cref="T:ODDGames.Scripting.Hosted.AiDescribe" />): the player's words, the price and balance,
+            one status line while the AI works, the free clarifying questions as tappable choices (with the prompt kept live for anything else
+            the player wants to say) before a new entry is built, words typed during a request held as the next turn, plain-language
+            results and failures, each AI turn with one-tap Undo/Redo, free quick controls
+            for the entry's properties, and a floating AI chip that reopens it during a test. No code is shown. It is <c>AiDescribe.uxml</c> +
+            <c>.uss</c> on its own panel: a centred popup over a dimmed backdrop (near full width in portrait); restyle it with <c>themeUss</c>.
+            Nothing runs per frame: it changes only when the conversation, the billing or the game's entry does. Main thread.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.AiDescribePanel.#ctor(ODDGames.Scripting.Hosted.AiDescribe,UnityEngine.UIElements.PanelSettings,System.String,ODDGames.Scripting.Unity.Modding.UiArrange,UnityEngine.Transform)">
+      <summary>
+        <paramref name="panel" /> is the panel it draws on, above the game's HUD; <paramref name="arrange" />, when the game has the hand-arrange
+            tool, backs the Arrange button.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.AiDescribePanel.Surface">
+      <summary>The panel's own surface, e.g. for the game's fonts (<see cref="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Fonts" />) and <see cref="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.NarrowClass" />.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.AiDescribePanel.OpenIde">
+      <summary>"Open in IDE (advanced)" for the entry; the link is hidden while null.</summary>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.Modding.AiDescribePanel.Closed">
+      <summary>The panel was closed (the chip may still show during a test).</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.AiDescribePanel.Playing">
+      <summary>A test is playing: while the panel is closed the floating AI chip shows.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.AiDescribePanel.Open(System.String,System.String)">
+      <summary>Open on the entry, or with null to make a new one of <paramref name="kind" />; fetches prices and pre-warms the AI.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.HostedEditorClient">
+      <summary>
+            Connects the game to the hosted script editor (an IDE only, with no link to a game backend) through a
+            <see cref="T:ODDGames.Scripting.Hosted.HostedSession" /> as the game's registered id. The files and objects callbacks, the handlers and every
+            event run on the main thread. Unity log lines are forwarded to the IDE console while <see cref="F:ODDGames.Scripting.Unity.Modding.HostedEditorClient.ForwardLogs" /> is set.
+            The AI runs in the game (<see cref="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.UseAi(ODDGames.Scripting.Hosted.IAiModelClient,ODDGames.Scripting.Modding.ScriptingProfile,ODDGames.Scripting.Hosted.AiSettings)" />): the IDE's AI requests are relayed to it, and in-game ones go through
+            <see cref="M:ODDGames.Scripting.Hosted.HostedSession.RequestAiAsync(ODDGames.Scripting.Hosted.AiRequest,System.IProgress{ODDGames.Scripting.Hosted.AiProgress},System.Threading.CancellationToken)" /> on <see cref="P:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Session" />.
+            </summary>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Rejected">
+      <summary>The server refused the connection (reason, message) and the client stopped; offer a button that calls <see cref="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Retry" />.</summary>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Unreachable">
+      <summary>The server stayed unreachable and the client stopped; offer a button that calls <see cref="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Retry" />.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedEditorClient.RequestHandler">
+      <summary>Answers the IDE's forwarded requests (<c>/api/run</c>, <c>/api/command</c>, <c>/api/attach</c>); called on the main thread, and must not block it.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Create(UnityEngine.GameObject,System.String,System.Func{System.Collections.Generic.IReadOnlyDictionary{System.String,System.String}},System.Func{System.String},System.Uri)">
+      <summary>
+            Add a client to <paramref name="owner" /> and start pairing as the registered <paramref name="gameId" />.
+            <paramref name="files" /> (scripts by workspace path) and <paramref name="objectsJson" /> (the object catalog
+            as a JSON array) may be null; <paramref name="server" /> defaults to <see cref="F:ODDGames.Scripting.Hosted.HostedSessionOptions.DefaultServer" />.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.ForwardRequestsTo(ODDGames.Scripting.Unity.ScriptIdeServerHost)">
+      <summary>
+            Answer forwarded requests with the in-game IDE's own handler on a worker thread, as the LAN IDE does: its handlers
+            wait for the main thread (commands, Properties, picks, library sources) and would block it if run there.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.UseAi(ODDGames.Scripting.Hosted.IAiModelClient,ODDGames.Scripting.Modding.ScriptingProfile,ODDGames.Scripting.Hosted.AiSettings)">
+      <summary>
+            Run the AI in the game on <paramref name="models" /> (an <see cref="T:ODDGames.Scripting.Hosted.AiBillingClient" /> for paid requests), called on the main
+            thread, with the docs and samples of <paramref name="profile" />. It reads the scripts through the files callback.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.UseBilling(ODDGames.Scripting.Hosted.AiBillingClient)">
+      <summary>Show the prices and balance of <paramref name="billing" /> in the IDE.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.UseLevel(ODDGames.Scripting.Hosted.IAiLevelContext)">
+      <summary>Let the AI look at the level through <paramref name="level" />, called on the main thread; after <see cref="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.UseAi(ODDGames.Scripting.Hosted.IAiModelClient,ODDGames.Scripting.Modding.ScriptingProfile,ODDGames.Scripting.Hosted.AiSettings)" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Retry">
+      <summary>Connect again with a fresh hello after <see cref="E:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Rejected" />, <see cref="E:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Unreachable" /> or <see cref="E:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Ended" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.CloseAsync">
+      <summary>Close the session for good and remove the client.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.HostedIde">
+      <summary>
+            The game's IDE: an in-process <see cref="T:ODDGames.Scripting.Unity.ScriptIdeServerHost" /> (no HTTP listener) holding the workspace, paired with the online
+            editor through a <see cref="T:ODDGames.Scripting.Unity.Modding.HostedEditorClient" /> that is sent the scripts under <see cref="P:ODDGames.Scripting.Unity.Modding.HostedIde.HostedFolders" />, receives the
+            editor's file changes, and forwards its requests to the server. Both outlive any dialog showing them. As an
+            <see cref="T:ODDGames.Scripting.Modding.IScriptWorkspace" /> it is the server's workspace with each write and delete mirrored to the paired editor.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.Client">
+      <summary>The pairing client; null until <see cref="M:ODDGames.Scripting.Unity.Modding.HostedIde.Start(UnityEngine.GameObject,ODDGames.Scripting.Unity.ScriptIdeServerHost.Options)" /> and after <see cref="M:ODDGames.Scripting.Unity.Modding.HostedIde.Stop" />.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.Failed">
+      <summary>The editor server refused the hello, could not be reached or ended the session; <see cref="M:ODDGames.Scripting.Unity.Modding.HostedEditorClient.Retry" /> pairs again.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.IdeConnected">
+      <summary>A browser has the online editor open on this session.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.Problem">
+      <summary>Why pairing last failed: <c>rejected</c>, <c>unreachable</c> or <c>ended</c>, with the server's message or reason; null once paired.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.Pairing">
+      <summary>The pairing for a dialog to show: connecting, its code and address, ready or a browser attached, or failed.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.Code">
+      <summary>The pairing code once paired, else null.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.Url">
+      <summary>The online editor's address for this session (with its pairing query) once paired, else null.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.HostedIde.ShownUrl">
+      <summary>
+        <see cref="P:ODDGames.Scripting.Unity.Modding.HostedIde.Url" /> without its query, to show.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedIde.Start(UnityEngine.GameObject,ODDGames.Scripting.Unity.ScriptIdeServerHost.Options)">
+      <summary>Start the server with <paramref name="options" /> (never listening) and pair it on <paramref name="owner" />; false while running.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.HostedIde.HostedFiles">
+      <summary>The scripts under <see cref="P:ODDGames.Scripting.Unity.Modding.HostedIde.HostedFolders" />, by workspace path.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.ModLiveReload">
+      <summary>
+            The IDE's saves applied to a running test: a changed mod is swapped on its own (<see cref="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Reload(ODDGames.Scripting.Modding.IModEntry,System.Boolean)" />), a changed mode
+            or an entry that failed to load needs a restart, and a script's changed UI files show again. A save that doesn't compile, or
+            UI with an error, keeps the old version running and is reported. <see cref="E:ODDGames.Scripting.Unity.Modding.ModLiveReload.Applied" /> gets each saved path's outcome.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModLiveReload.#ctor(ODDGames.Scripting.Unity.Modding.ModRuntime,ODDGames.Scripting.Modding.ScriptUi,System.Func{System.String,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String}})">
+      <param name="filesOf">The UI files saved for an entry id, by path in its folder.</param>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.Modding.ModLiveReload.Applied">
+      <summary>A saved path was applied (true) or kept the running version (false, with why).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModLiveReload.ApplySaves(System.Collections.Generic.IEnumerable{ODDGames.Scripting.Modding.IModEntry},System.Boolean)">
+      <summary>Apply the saves of <paramref name="entries" /> and their UI files; true when the session must restart for them.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModLiveReload.ApplyValues(ODDGames.Scripting.Modding.IModEntry,System.Boolean)">
+      <summary>Give a running entry its current property values (<see cref="M:ODDGames.Scripting.Unity.Modding.ModRuntime.ApplyValues(ODDGames.Scripting.Modding.IModEntry,System.Boolean)" />); does nothing when it isn't running.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IModHost">
+      <summary>What a game supplies to run its modes and mods.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IModHost.Problem(ODDGames.Scripting.Modding.IModEntry)">
+      <summary>The message that stops <paramref name="entry" /> from running (compile error, missing properties), or null when it can run.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IModHost.ResolveObject(System.String)">
+      <summary>The scene object an Object property's stored value refers to, or null.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IModHost.LoadPrefabAsync(System.String,UnityEngine.Transform,System.String)">
+      <summary>Instantiate the prefab a Prefab property's stored value names under <paramref name="parent" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IModHost.ShowProblem(ODDGames.Scripting.Modding.ModProblem)">
+      <summary>Show a script problem to the player (<see cref="P:ODDGames.Scripting.Modding.ModProblem.Text" />, or its phrase translated); it is already logged.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.ModRuntime">
+      <summary>
+            Runs <see cref="T:ODDGames.Scripting.Modding.ModSession" />s in Unity: loads each entry with its property values (prefab properties
+            load into an inactive <c>~ScriptPrefabs</c> root), restores gravity when a session ends, and saves
+            <see cref="P:ODDGames.Scripting.Unity.Modding.ModRuntime.Storage" /> every <see cref="F:ODDGames.Scripting.Unity.Modding.ModRuntime.StorageFlushSeconds" />, at the end of a session and on pause or quit.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.ModRuntime.Runtime">
+      <summary>The object-script runtime that <see cref="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Broadcast(System.String,System.Object[])" /> also raises events on; optional.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.ModRuntime.PropertiesReady">
+      <summary>True once every prefab property of the session has loaded; start the mode only then.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Create(UnityEngine.GameObject,ODDGames.Scripting.Unity.Modding.IModHost,ODDGames.Scripting.Modding.ModScriptLoader,ODDGames.Scripting.Modding.IScriptStorageBackend,ODDGames.Scripting.Modding.StorageLimits)">
+      <summary>Add a runtime to <paramref name="owner" />; storage defaults to files under <c>persistentDataPath/ScriptStorage</c>.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.StartSession(ODDGames.Scripting.Modding.IModEntry,System.Collections.Generic.IEnumerable{ODDGames.Scripting.Modding.IModEntry},ODDGames.Scripting.Modding.ModSessionOptions)">
+      <summary>End any session and start one with <paramref name="mode" /> (may be null) and <paramref name="mods" />; an entry that cannot run is reported and left out.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Tick(System.Single,System.Func{System.Boolean})">
+      <summary>A frame of the session's scripts (<see cref="M:ODDGames.Scripting.Modding.ModSession.Update(System.Single,System.Func{System.Boolean})" />), then of <see cref="T:ODDGames.Scripting.Unity.Modding.UnityScripting" />'s features.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Broadcast(System.String,System.Object[])">
+      <summary>Raise a game event on object scripts and call it on the session's scripts.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.PrefabKey(UnityEngine.GameObject)">
+      <summary>The stored value a prefab property template was loaded from, or null for any other object.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.ModRuntime.TemplateRoot">
+      <summary>The inactive root prefab templates load under during a session; made on first use, destroyed with the session.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.AdoptTemplate(UnityEngine.GameObject,System.String)">
+      <summary>Record a template the host made under <see cref="P:ODDGames.Scripting.Unity.Modding.ModRuntime.TemplateRoot" /> as loaded from <paramref name="key" /> (<see cref="M:ODDGames.Scripting.Unity.Modding.ModRuntime.PrefabKey(UnityEngine.GameObject)" />).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.ReportLimit(System.String,System.String,System.Object[])">
+      <summary>Report the running script hitting a limit, once per script and kind per session; <paramref name="phrase" /> is English with <c>{0}</c>… for <paramref name="args" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Reload(ODDGames.Scripting.Modding.IModEntry,System.Boolean)">
+      <summary>
+            Swap a running entry for its current source without restarting the session: the old script gets <c>OnModeEnd</c> and
+            leaves, the new one loads with its property values and the old one's private state (<see cref="T:ODDGames.Scripting.Modding.ModFieldCarry" />) and,
+            when <paramref name="started" />, gets <c>OnModeStart</c>. A script stopped earlier in the session starts afresh.
+            Returns why the old script keeps running (it does not compile, it cannot run, it is not in the session), or null.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ModRuntime.ApplyValues(ODDGames.Scripting.Modding.IModEntry,System.Boolean)">
+      <summary>
+            Give a running entry its current property values: a mod reloads with them (keeping its private state, so what its start builds
+            follows the new values); a mode's number, switch, colour and text fields change in place. Returns why it can't, or null.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.ScriptBundleStamp">
+      <summary>
+            The API bundle this build was uploaded as, which the hosted editor client sends as <c>hello.bundleId</c>. The
+            SDK's build step adds one to the first scene of every player build; in the editor the values come from the
+            last "Upload API Bundle", which the Editor DLL sets into <see cref="P:ODDGames.Scripting.Unity.Modding.ScriptBundleStamp.EditorBundleId" />.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.ScriptBundleStamp.EditorBundleRefresh">
+      <summary>
+            Set by the Editor DLL: uploads the editor's API bundle again when the scripts changed since the last upload and
+            returns its id, so a hosted IDE paired from the editor checks against the code that runs. Main thread.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.ScriptBundleStamp.GameVersion">
+      <summary>The game version written into the bundle manifest, e.g. "4.00 (34)".</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.ScriptUiPlayers">
+      <summary>
+            The players of <c>UI.ShowFor</c> copies, for the game: which player a copy is for, who caused the UI callback that is running
+            (a networked host forwards remote players' input with <see cref="P:ODDGames.Scripting.Unity.Modding.ScriptUiPlayers.Forwarded" />), and keeping other players' copies off this
+            screen while they still run so a host can mirror them.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.ScriptUiPlayers.Forwarded">
+      <summary>The player whose input the running UI callback came from; null for the local player.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ScriptUiPlayers.PlayerOf(ODDGames.Scripting.Modding.ScriptUiView)">
+      <summary>The player a per-player copy is shown for; null for a shared one or a player that is gone.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ScriptUiPlayers.Tick">
+      <summary>Show this screen's player their copies and park everyone else's; once a frame.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IScriptWorldHost">
+      <summary>The world changes a script makes; a networked host replicates them.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptWorldHost.SetGravity(System.Single)">
+      <summary>Downward gravity in m/s²; <see cref="T:ODDGames.Scripting.Unity.Modding.ModRuntime" /> restores the original when the session ends.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.LocalScriptWorldHost">
+      <summary>
+            World changes on this device only: at most <see cref="F:ODDGames.Scripting.Unity.Modding.LocalScriptWorldHost.MaxSpawned" /> copies, hidden objects remembered and
+            restored on <see cref="M:ODDGames.Scripting.Unity.Modding.LocalScriptWorldHost.Dispose" />, which also destroys the copies. The spawn rate is the caller's
+            (<see cref="M:ODDGames.Scripting.Modding.ModSession.AllowSpawn" />).
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.LocalScriptWorldHost.#ctor(System.Func{UnityEngine.GameObject,System.Boolean},System.Action{System.String,System.String,System.Object[]})">
+      <summary>
+        <paramref name="isProtected" /> marks objects scripts may not hide, e.g. the participants.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.ScriptZones">
+      <summary>
+            Any object used as an area. Its bounds are the combined bounds of its renderers and colliders; a point is
+            inside when it is over the footprint (seen from above) and not below the base.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ScriptZones.Bounds(UnityEngine.GameObject)">
+      <summary>The bounds, or zero size at the zone's position (or the origin) when it has no renderer or collider.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ScriptZones.RandomPoint(UnityEngine.GameObject)">
+      <summary>A random point over the footprint, dropped onto the first surface below the top (the base if there is none).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.ScriptZones.PointDistanceToEdge(UnityEngine.GameObject,UnityEngine.Vector3)">
+      <summary>Metres to the edge of the footprint seen from above; positive inside, negative outside.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UiArrangeControl">
+      <summary>One of the game's own on-screen controls, as fractions of the screen from the top-left.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IUiArrangeHost">
+      <summary>What a game does around <see cref="T:ODDGames.Scripting.Unity.Modding.UiArrange" />. Main thread.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IUiArrangeHost.BeginArrange">
+      <summary>Pause the test (hiding any pause menu) for arranging; false when it can't now.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IUiArrangeHost.EndArrange">
+      <summary>Carry on with the test.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IUiArrangeHost.Controls(System.Collections.Generic.List{ODDGames.Scripting.Unity.Modding.UiArrangeControl})">
+      <summary>The game's controls showing now (e.g. the brake): mod UI snaps to their edges and is kept off them.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UiArrange">
+      <summary>
+            The in-game hand-arrange tool: while the game is paused, the player taps an element of a shown mod UI and drags it, pinches it or
+            drags a corner to resize it, snapping to the HUD edges and centre, the safe area, the game's controls, the element's siblings and an
+            8-unit grid. Each gesture is one undo step that writes the element's inline style into the entry's <c>.uxml</c> as the IDE designer
+            does (<see cref="T:ODDGames.Scripting.Modding.UiPlacement" />), into the session and the game's <see cref="T:ODDGames.Scripting.Modding.IScriptSourceStore" />, so the IDE sees the change.
+            The overlay is <c>UiArrange.uxml</c> + <c>.uss</c> drawn on its own panel above the game's HUD; restyle it with <c>themeUss</c>.
+            </summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UiArrange.AnchorDistance">
+      <summary>A drop this close (panel units) to its parent's start, end or centre anchors that axis there.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UiArrange.SnapDistance">
+      <summary>The designer's snap distance doubled for a finger.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiArrange.#ctor(ODDGames.Scripting.Modding.ScriptUi,ODDGames.Scripting.Unity.Modding.UiToolkitSurface,ODDGames.Scripting.Unity.Modding.IUiArrangeHost,ODDGames.Scripting.Modding.IScriptSourceStore,UnityEngine.UIElements.PanelSettings,ODDGames.Scripting.Unity.Modding.UiArrangeLabels,System.String,UnityEngine.Transform)">
+      <summary>
+        <paramref name="overlay" /> is the panel the tool draws on: above the game's HUD, scaled like <paramref name="scripts" />' panel;
+            <paramref name="themeUss" /> is appended to the tool's USS.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UiArrange.Surface">
+      <summary>The tool's own panel, e.g. for the game's fonts (<see cref="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Fonts" />) and <see cref="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.NarrowClass" />.</summary>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.Modding.UiArrange.ActiveChanged">
+      <summary>Raised on the main thread when arranging starts or ends.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiArrange.Command">
+      <summary>The IDE toolbar button that starts arranging in the game; answer it with <see cref="M:ODDGames.Scripting.Unity.Modding.UiArrange.Handle(System.String,System.Func{System.Func{System.String},System.String})" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiArrange.Handle(System.String,System.Func{System.Func{System.String},System.String})">
+      <summary>Answer <see cref="M:ODDGames.Scripting.Unity.Modding.UiArrange.Command" /> (IDE thread); null for any other command. <paramref name="onMainThread" /> as in <see cref="T:ODDGames.Scripting.Modding.ModIdeCommands" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiArrange.Begin">
+      <summary>Pause the game and show the tool; false when the host can't pause now.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiArrange.End">
+      <summary>Hide the tool and carry on with the game; the changes stay saved.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UiDesignerHost">
+      <summary>
+            The game's side of the IDE's UI designer: the Game preview drawn by the game, highlighting the selected element in the shown
+            script UI, the fonts the browser may load, this screen (frame and the game's controls) and the game behind the UI.
+            <see cref="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.Serve(ODDGames.Scripting.Unity.ScriptIdeServerHost.Options)" /> sets the hooks on the IDE's options; the IDE calls them on its thread.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.#ctor(UnityEngine.MonoBehaviour,ODDGames.Scripting.Modding.ScriptUi,ODDGames.Scripting.Unity.Modding.UiToolkitSurface,ODDGames.Scripting.Unity.Modding.IScriptUiArea,System.Func{System.Collections.Generic.IReadOnlyList{UnityEngine.Rect}},System.Func{System.String,System.Byte[]})">
+      <param name="owner">Runs the backdrop capture's coroutine.</param>
+      <param name="controls">The game's controls for the designer, as <see cref="P:ODDGames.Scripting.Unity.Modding.IScriptUiArea.Reserved" /> gives them (e.g. <see cref="P:ODDGames.Scripting.Unity.Modding.UiReservedControls.Known" />); null: <paramref name="area" />'s.</param>
+      <param name="webFont">A font's file for the browser by font id, or null for one without a web licence.</param>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.RenderPreview(ODDGames.Scripting.Modding.UiPreview)">
+      <summary>The designer's UI drawn by the game, as base64 PNG on a clear background. IDE thread.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.Highlight(System.String,System.String)">
+      <summary>Outlines the designer's selected element in the shown script UI; a null name clears it. IDE thread.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.WebFont(System.String)">
+      <summary>A script UI font the browser may load, as base64; null for one without a web licence.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.DeviceJson">
+      <summary>This screen for the designer (<c>GET /api/ui/device</c>): pixels, the script UI frame from the top-left, and the game's controls in script UI panel units. Main thread.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.ScreenChange">
+      <summary>
+        <see cref="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.DeviceJson" /> when the screen's size, safe area or orientation changed since the last call, else null. Main thread.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiDesignerHost.CaptureBackdrop">
+      <summary>The game's screen without script UI, as base64 PNG (<c>GET /api/ui/backdrop</c>), at most <see cref="F:ODDGames.Scripting.Unity.Modding.UiDesignerHost.BackdropMaxEdge" /> pixels a side. IDE thread.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UiReservedControls">
+      <summary>
+            Where the game's own controls sit on screen, found by walking its HUD for the elements <c>isReserved</c> picks, as fractions of
+            the panel from the top-left (<see cref="P:ODDGames.Scripting.Unity.Modding.IScriptUiArea.Reserved" />) and by name (<see cref="T:ODDGames.Scripting.Unity.Modding.UiArrangeControl" />). Walked at most
+            once a frame; a hidden HUD reserves nothing.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UiReservedControls.Known">
+      <summary>
+        <see cref="P:ODDGames.Scripting.Unity.Modding.UiReservedControls.Reserved" />, or while the HUD is hidden (e.g. in the editor) the last controls it showed on this screen size.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IScriptHudRenderer">
+      <summary>The HUD calls of game mode and mod scripts, as a game's script API forwards them.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptHudRenderer.Text(System.String,System.String,System.String,System.String,UnityEngine.GameObject)">
+      <summary>Show or update a text; with a <paramref name="target" /> only on the device that drives it.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UiToolkitScriptHud">
+      <summary>
+            The script HUD drawn by the script UI engine from <see cref="T:ODDGames.Scripting.Modding.ScriptHudTemplate" />: a <see cref="T:ODDGames.Scripting.Modding.ScriptHudModel" />
+            keeps the limits and cadence, this draws its items in a full-screen layer of a <see cref="T:ODDGames.Scripting.Unity.Modding.UiToolkitSurface" />.
+            Participant arguments of phrases are shown by name.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitScriptHud.#ctor(ODDGames.Scripting.Unity.Modding.UiToolkitSurface,ODDGames.Scripting.Modding.IScriptParticipants{UnityEngine.GameObject},System.Func{ODDGames.Scripting.Modding.HudPhrase,System.Object,System.Object,System.String},ODDGames.Scripting.Modding.HudLimits,System.String,System.Func{System.Boolean},ODDGames.Scripting.Modding.IModClock)">
+      <summary>
+        <paramref name="translate" /> gives a phrase in this device's language (participant arguments already names); <paramref name="extraUss" /> restyles the template; <paramref name="showErrors" /> gates <see cref="M:ODDGames.Scripting.Unity.Modding.UiToolkitScriptHud.ShowError(System.String)" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitScriptHud.Tick">
+      <summary>Call every frame: expires the banner, draws held-back updates and refreshes the scoreboard.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IScriptUiArea">
+      <summary>Where a game lets mod UI go.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.IScriptUiArea.SafeArea">
+      <summary>The part of the screen mod UI draws in, as fractions of the screen from the top-left.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.IScriptUiArea.Reserved">
+      <summary>Screen parts (same units) a mod's clickable elements must not cover, e.g. the pause button.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UiToolkitSurface">
+      <summary>
+            Draws <see cref="T:ODDGames.Scripting.Modding.UiNode" /> trees with UI Toolkit, styled by the SDK's USS cascade (runtime UI Toolkit cannot
+            load USS text). Each script's views go in a layer clipped to <see cref="P:ODDGames.Scripting.Unity.Modding.IScriptUiArea.SafeArea" />; only
+            controls take pointer input, and a control that covers more than <see cref="F:ODDGames.Scripting.Modding.UiLimits.MaxInputScreenShare" />
+            of the screen or a reserved area is disabled.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.#ctor(UnityEngine.UIElements.PanelSettings,ODDGames.Scripting.Unity.Modding.IScriptUiArea,ODDGames.Scripting.Modding.UiLimits,System.Action{System.String,System.String,System.Object[]},System.Action{System.String},UnityEngine.Transform)">
+      <summary>The limit and error reports default to <see cref="P:ODDGames.Scripting.Modding.ModSession.Active" />; <paramref name="parent" /> owns the panel's GameObject, e.g. to keep it across scene loads.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Root">
+      <summary>The panel root; a game adds its own StyleSheet assets (fonts, theme) here.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Fonts">
+      <summary>The game's fonts by the id a script's USS names in <c>-unity-font-definition</c>.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.AsciiGlyphs">
+      <summary>The ASCII glyphs <see cref="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.AddFont(System.String,UnityEngine.Font,System.String)" /> fills by default.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.AddFont(System.String,UnityEngine.Font,System.String)">
+      <summary>
+            Add <paramref name="font" /> to <see cref="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Fonts" /> as <paramref name="id" />, converted and filled with <paramref name="glyphs" /> now:
+            Unity converts a Font lazily on first draw, allocating mid-game. The surface destroys the font asset when disposed.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.NarrowClass">
+      <summary>
+            A class on the script UI root while the panel is narrower than its reference width, for rules like <c>.narrow .dial</c>
+            that follow a game HUD which re-pins its controls below the reference aspect; null for none. <see cref="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.RenderOffscreen(ODDGames.Scripting.Modding.UiPreview,UnityEngine.Color)" />
+            sets it by the previewed screen.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.AddLayer(System.String,System.Boolean)">
+      <summary>A full-screen layer, or with <paramref name="confined" /> one clipped to the safe area. Later layers draw on top.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Build(ODDGames.Scripting.Modding.UiNode,System.Collections.Generic.IEnumerable{ODDGames.Scripting.Modding.UiNode},System.Collections.Generic.IReadOnlyList{ODDGames.Scripting.UssRule})">
+      <summary>Build <paramref name="roots" /> under <paramref name="parent" />, styled by <paramref name="rules" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Add(ODDGames.Scripting.Modding.UiNode,ODDGames.Scripting.Modding.UiNode)">
+      <summary>Build <paramref name="child" /> under <paramref name="parent" /> with the parent's styles, or move it there.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Restyle(ODDGames.Scripting.Modding.UiNode)">
+      <summary>Re-resolve the styles of the node and its descendants, e.g. after a change to its inline style; only changed declarations are applied.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Restyle(ODDGames.Scripting.Modding.UiNode,System.Boolean)">
+      <summary>
+            UI Toolkit redraws an element whose own <c>color</c> changed but not one that inherits a new colour, so a vector
+            element under a changed <c>color</c> is marked for repaint; nothing else is redrawn.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.RootOf(ODDGames.Scripting.Modding.ScriptUiView)">
+      <summary>The element holding a shown view's UXML roots and the elements its script adds; null when the view is not shown.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Owns(ODDGames.Scripting.Modding.ModScript,UnityEngine.UIElements.VisualElement)">
+      <summary>
+            True when <paramref name="element" /> is in, or is the root of, a shown view of <paramref name="script" />, or is in no panel
+            at all (made by a script and not added anywhere yet); false for the layers, the panel and every other element.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.Highlight(ODDGames.Scripting.Modding.UiNode)">
+      <summary>Outline <paramref name="node" /> above all script UI while it is shown, e.g. the IDE designer's selection; null clears it.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UiToolkitSurface.RenderOffscreen(ODDGames.Scripting.Modding.UiPreview,UnityEngine.Color)">
+      <summary>
+            Draw <paramref name="preview" /> as this surface would, on a temporary panel with this panel's scaling, theme, root
+            stylesheets and fonts, and return it as PNG. Bound texts and values show <see cref="P:ODDGames.Scripting.Modding.UiPreview.Texts" /> and
+            <see cref="P:ODDGames.Scripting.Modding.UiPreview.Values" />. Main thread; renders synchronously.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityAiLevel">
+      <summary>
+        <see cref="T:ODDGames.Scripting.Hosted.IAiLevelContext" /> over the game's level objects: each one's name, kind, position and tags, the level's extent, the
+            selection or where the view camera looks, the level's modes and mods, and an object's rotation, scale, components, bounds and
+            group. Built when asked, on the main thread.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityAiLevel.LevelObjects">
+      <summary>The level's own objects the player can see in its hierarchy (inactive ones too).</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UnityAiLevel.FindHint">
+      <summary>How a script reaches an object by its name.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UnityAiLevel.Selected">
+      <summary>The level object the player has selected, or null.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UnityAiLevel.ViewCamera">
+      <summary>The camera the player looks through; <see cref="F:ODDGames.Scripting.Hosted.AiLevelSnapshot.Here" /> is the first thing its centre ray hits.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityAiLevel.HidesComponent(UnityEngine.MonoBehaviour)">
+      <summary>The object's components the AI is not told about.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityAiLevel.GroupOf(UnityEngine.GameObject)">
+      <summary>The level object grouping <paramref name="levelObject" />, or null.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityAiLevel.TypeOf(UnityEngine.GameObject)">
+      <summary>A short lowercase kind: by default its name without a copy number (<c>Ramp (2)</c> is a <c>ramp</c>).</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.ScriptObjectOwner">
+      <summary>Whose object a script reaches: a level object, a copy it made, a prefab template, or none of its own.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox">
+      <summary>
+            The objects of a mode or mod script: the level's objects (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Level" />), the copies scripts made
+            (<see cref="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Adopt(UnityEngine.GameObject)" />) and the prefab templates of the session (<see cref="M:ODDGames.Scripting.Unity.Modding.ModRuntime.PrefabKey(UnityEngine.GameObject)" />); the materials of their renderers,
+            textures and sprites; UI elements only in the calling script's own documents. Everything else is out. The first time a script
+            reaches a level object during a session it is snapshotted, so <see cref="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Restore" /> can put it back.
+            </summary>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Touched">
+      <summary>A level object's root a script reached for the first time this session, or a copy it made; raised before the script changes it.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Adopt(UnityEngine.GameObject)">
+      <summary>Give scripts full access to a copy they made.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.IsScriptMaterial(UnityEngine.Material)">
+      <summary>True for a material on an object scripts reached: changing it shows on that object.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.OwnerOf(UnityEngine.Transform,UnityEngine.GameObject@)">
+      <summary>Whose object <paramref name="transform" /> is, and the level object, copy or template it belongs to.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Roots">
+      <summary>The level's objects and the script copies: every object scripts have is under one of these.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Restore">
+      <summary>Put every level object the session's scripts reached back as it was, and destroy the materials they instanced.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityObjectSandbox.Forget">
+      <summary>Drop what the session's scripts reached without putting it back.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityScriptCalc">
+      <summary>
+        <see cref="T:ODDGames.Scripting.Modding.ScriptCalc" /> with UnityEngine.Random, and flat (top-down) vector maths.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityScriptFeature">
+      <summary>Parts of Unity's own API a game hands its mode and mod scripts; see <see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Features" />.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.UnityPolicy">
+      <summary>The engine modules' UnityEngine namespace, without what reaches past the script's objects, the device or the renderer; objects outside the sandbox are opaque.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.DenyNotes">
+      <summary>Compile errors on denied APIs say what to use instead.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.PhysicsQueries">
+      <summary>Physics queries and read-only physics settings; hits on objects that are not the script's read as null.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Objects">
+      <summary>Instantiate, Destroy, the object finders and AddComponent, over the script's own objects (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Level" />, <see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.World" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Messages">
+      <summary>SendMessage, SendMessageUpwards and BroadcastMessage reach the session's scripts.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Coroutines">
+      <summary>StartCoroutine, Invoke, InvokeRepeating and print in a script.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.PlayerPrefs">
+      <summary>PlayerPrefs on the script's own <see cref="T:ODDGames.Scripting.Modding.ScriptStorage" />.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Application">
+      <summary>A read-only Application: platform, version, language, focus.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Resources">
+      <summary>Resources.Load over the game's asset catalog (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Assets" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Input">
+      <summary>Unity's legacy Input, read-only, without the game's reserved keys, buttons and screen parts (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.ReservedInput" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.UiToolkit">
+      <summary>UI Toolkit in the script's own documents (<c>UI.Show</c>), and nowhere else.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.RestoreOnEnd">
+      <summary>Level objects a script changed go back as they were when the session ends.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Storage">
+      <summary>The <c>Storage</c> static: saved key/value text per mode or mod, on the script's own <see cref="T:ODDGames.Scripting.Modding.ScriptStorage" />.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IScriptLevelObjects">
+      <summary>The game's level: the objects scripts may change besides the copies and templates they make.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptLevelObjects.IsLevelObject(UnityEngine.Transform)">
+      <summary>True for the root of one of the level's own objects, e.g. one with the level editor's component.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptLevelObjects.LevelObjects">
+      <summary>Every object <see cref="M:ODDGames.Scripting.Unity.Modding.IScriptLevelObjects.IsLevelObject(UnityEngine.Transform)" /> is true for, inactive ones too.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IScriptAssetCatalog">
+      <summary>What <c>Resources.Load</c> reads in scripts: the game's catalog of assets, by name or folder.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.IScriptAssetCatalog.Loaded">
+      <summary>False while the catalog is still loading.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptAssetCatalog.KeysNamed(System.String,System.Boolean)">
+      <summary>The keys of the assets with that name, or (with <paramref name="folder" />) under that folder too.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptAssetCatalog.Instantiate(System.String,UnityEngine.Transform,System.String)">
+      <summary>A copy of the asset under <paramref name="parent" />, or null.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.IScriptReservedInput">
+      <summary>Input the game keeps for itself (e.g. pause): scripts never see it.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.IScriptReservedInput.Buttons">
+      <summary>Input Manager buttons and axes, by name.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.IScriptReservedInput.IsReservedPoint(UnityEngine.Vector2)">
+      <summary>True for a screen point (pixels, bottom-left origin, as Input reports them) on one of the game's own controls.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions">
+      <summary>The switches and hooks of <see cref="T:ODDGames.Scripting.Unity.Modding.UnityScripting" />. Every feature is off until the game turns it on.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Level">
+      <summary>The level's own objects (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Objects" />, <see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.RestoreOnEnd" />); null: only the copies and templates scripts make.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.World">
+      <summary>Who spawns, despawns and hides objects for Instantiate, Destroy and <see cref="M:ODDGames.Scripting.Unity.Modding.UnityScripting.Spawn(UnityEngine.GameObject,UnityEngine.Vector3,UnityEngine.Quaternion)" /> (a networked game replicates them); null or none: Instantiate returns null.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Ui">
+      <summary>The script documents <c>UI.Show</c> opens (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.UiToolkit" />), and where they draw.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.LocalPlayer">
+      <summary>The object standing for the local player: whose per-player UI copies show on this screen, and <c>UI.Sender</c> outside a forwarded callback.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.AddableComponentsText">
+      <summary>Said when a script adds any other component.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityScripting">
+      <summary>
+            Unity's own API for mode and mod scripts, as switchable features (<see cref="T:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions" />): the policy preset
+            (<see cref="T:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy" />), the object sandbox, and the Unity names scripts call bound to safe implementations.
+            <see cref="T:ODDGames.Scripting.Unity.Modding.ModRuntime" /> runs their per-frame work (<see cref="M:ODDGames.Scripting.Unity.Modding.ModRuntime.Tick(System.Single,System.Func{System.Boolean})" />) and their session end.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.Modding.UnityScripting.Sandbox">
+      <summary>Which objects belong to a script; set it on <see cref="F:ODDGames.Scripting.ScriptExecutionLimits.ObjectSandbox" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScripting.TrustedTypes(ODDGames.Scripting.Unity.Modding.UnityScriptFeature)">
+      <summary>The game API types of the features that are on, for <see cref="F:ODDGames.Scripting.ScriptExecutionLimits.TrustedHostTypes" />.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScripting.Spawn(UnityEngine.GameObject,UnityEngine.Vector3,UnityEngine.Quaternion)">
+      <summary>
+            A copy of <paramref name="prefab" /> through <see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.World" />, within the session's spawn rate, owned by the
+            running script from then on; null without a session, a world or a prefab.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy">
+      <summary>
+            Unity's own API in a <see cref="T:ODDGames.Scripting.ScriptApiPolicy" />, by feature: what a mode or mod script expects from Unity, bound to the safe
+            implementations in <see cref="N:ODDGames.Scripting.Unity.ScriptApi" />, with what stays out explaining what to use instead. A game adds its own namespace,
+            types and notes afterwards; a note it sets replaces the preset's.
+            </summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy.ScriptApiNamespace">
+      <summary>The namespace scripts import for <c>UI</c> (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.UiToolkit" />) and <c>Storage</c> (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Storage" />).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy.Build(ODDGames.Scripting.Unity.Modding.UnityScriptFeature)">
+      <summary>
+        <see cref="M:ODDGames.Scripting.ScriptApiPolicy.SafeBase" /> with <paramref name="features" /> applied.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy.AddUsings(ODDGames.Scripting.ScriptCompileOptions,ODDGames.Scripting.Unity.Modding.UnityScriptFeature)">
+      <summary>The usings a script needs for <paramref name="features" />, added to <paramref name="options" />.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.Modding.UnityScriptValues">
+      <summary>Unity's script property types and value conversions.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScriptValues.PropertyTypes">
+      <summary>int, float, bool, string, <c>Color</c>, <c>GameObject</c> (a prefab when the field name ends in "Prefab"), and <c>GameObject[]</c> / <c>List&lt;GameObject&gt;</c>.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScriptValues.ToScalar(ODDGames.Scripting.Modding.ScriptPropertyInfo,System.String)">
+      <summary>The stored value as the script field's Unity value; object and prefab properties are resolved by the caller.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.Modding.UnityScriptValues.Format(UnityEngine.Color)">
+      <summary>
+        <c>#RRGGBBAA</c>, the stored form of a Color property.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.ApplicationApi">
+      <summary>Unity's Application for scripts (redirected by <see cref="T:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy" />): what the game runs on, read-only.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.ObjectApi">
+      <summary>
+            What scripts get when they call Unity's Object, GameObject, Component and MonoBehaviour members that would reach past
+            their objects (Instantiate, Destroy, the finders, AddComponent, SendMessage, coroutines, Invoke). Scripts call the
+            Unity names; <see cref="T:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy" /> redirects them here.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.PlayerPrefsApi">
+      <summary>Unity's PlayerPrefs for scripts (redirected by <see cref="T:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy" />): the calling mode's or mod's own <see cref="T:ODDGames.Scripting.Modding.ScriptStorage" />.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.ResourcesApi">
+      <summary>Unity's Resources for scripts (redirected by <see cref="T:ODDGames.Scripting.Unity.Modding.UnityScriptPolicy" />): the game's asset catalog (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.Assets" />).</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.ScriptUnityInput">
+      <summary>
+            What a script's <c>UnityEngine.Input</c> calls run (a policy redirect): the real legacy Input, read-only, without the game's
+            reserved keys and buttons or touches and clicks on its reserved controls (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptingOptions.ReservedInput" />),
+            so a script can never see, and so never suppress, them.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.Storage">
+      <summary>Saved key/value text for the calling mode or mod (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.Storage" />): its own keys in the runtime's <see cref="T:ODDGames.Scripting.Modding.ScriptStorage" />.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptApi.UI">
+      <summary>The UI Toolkit documents of a game mode or mod: the UXML/USS files in its folder, or ones it builds in code (<see cref="F:ODDGames.Scripting.Unity.Modding.UnityScriptFeature.UiToolkit" />).</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptIdeServerHost">
+      <summary>
+            Reusable host for an in-game web Script IDE. Owns the running <see cref="T:ODDGames.Scripting.Ide.ScriptIdeServer" /> and its
+            shared <see cref="T:ODDGames.Scripting.Ide.Workspace" />, seeds onboarding files (if absent), forwards Unity log messages into
+            the IDE's browser console, and exposes the connect URL + guarded workspace file ops. Everything
+            game-specific — window title, mods folder, seed files, compile options, the event catalog, and the
+            Objects-tab object-catalog/attach hooks — is passed in via <see cref="T:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options" />, so this class
+            references no RuntimeEditor or game type. Hold one instance (e.g. statically) so the server survives
+            UI open/close.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options">
+      <summary>Everything a host supplies to stand up the IDE server. The functional inputs are all
+            plain SDK values/delegates; the rest are display/branding strings.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.RootDirectory">
+      <summary>Absolute folder the workspace cache file lives in (e.g. <c>persistentDataPath/Mods</c>).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.WorkspaceLabel">
+      <summary>Display label for the workspace root shown in the IDE tree. Default "Mods".</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.Port">
+      <summary>TCP port; 0 picks a free one.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.BindAddress">
+      <summary>Address the listener binds. Default all interfaces (LAN); use "127.0.0.1" when the IDE is only relayed locally.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.Listen">
+      <summary>False starts no HTTP listener; drive the IDE through <see cref="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.Dispatch(System.String,System.String,System.String)" /> instead.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.Title">
+      <summary>Browser tab title.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.WrapAllScripts">
+      <summary>See <see cref="P:ODDGames.Scripting.Ide.IdeOptions.WrapAllScripts" />; on for a <see cref="T:ODDGames.Scripting.Modding.ScriptingProfile" />.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.Commands">
+      <summary>Host command buttons (e.g. "AI Generate") shown in the IDE toolbar.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.CommandHandler">
+      <summary>Runs a host command (requestJson → resultJson); see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.CommandHandler" />.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.ApiReferenceTypes">
+      <summary>Types the API-reference panel documents via reflection (facade + injected/context types).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.ApiReferenceDescriptions">
+      <summary>Optional descriptions for the API reference, keyed by "Type"/"Type.Member".</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.ApiReferenceExamples">
+      <summary>Optional code examples for the API reference, keyed by "Type"/"Type.Member".</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.ApiReferenceDocAttribute">
+      <summary>Doc attribute full name the API reference reads (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.ApiReferenceDocAttribute" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.SeedFiles">
+      <summary>Onboarding files (workspace-relative path → content) written only when absent.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.Layout">
+      <summary>The IDE's branding, sections, docs and toolbar actions (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.Layout" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.EntryHandler">
+      <summary>Adds, renames and removes the game's entries (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.EntryHandler" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.EntryLevel">
+      <summary>The entry handler also answers the level actions (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.EntryLevel" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.Properties">
+      <summary>The Properties window (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.Properties" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.RunStateProvider">
+      <summary>The game's run state as JSON (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.RunStateProvider" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.LibrarySources">
+      <summary>The game's code browser sources (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.LibrarySources" />).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.UiRenderer">
+      <summary>The Game preview, fonts, screen and backdrop of the UI designer (see <see cref="P:ODDGames.Scripting.Ide.IdeOptions.UiRenderer" /> and the hooks after it).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.Options.FromProfile(ODDGames.Scripting.Modding.ScriptingProfile,System.String)">
+      <summary>The options for <paramref name="profile" />; the game still supplies the port and the object, attach and command handlers.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.ScriptIdeServerHost.ApiVersion">
+      <summary>IDE protocol version of the bundled IDE build.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.ScriptIdeServerHost.Url">
+      <summary>Loopback connect URL (e.g. <c>http://127.0.0.1:8971/</c>), or null when not running or not listening.</summary>
+    </member>
+    <member name="E:ODDGames.Scripting.Unity.ScriptIdeServerHost.LogEmitted">
+      <summary>Raised (level, message) for each Unity warning/error forwarded into the IDE console.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.Dispatch(System.String,System.String,System.String)">
+      <summary>Answer one IDE request (e.g. <c>GET /api/tree</c>) without HTTP. Thread-safe.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.Start(ODDGames.Scripting.Unity.ScriptIdeServerHost.Options)">
+      <summary>Start the server (idempotent). Returns the connect URL.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.LanIps">
+      <summary>
+            All usable LAN IPv4 addresses of this machine, best candidate first, for the "connect from another
+            device" URL. A real Wi-Fi/Ethernet interface (one that owns a default gateway) ranks above virtual
+            adapters (VirtualBox / Hyper-V / WSL / VMware / VPN), whose addresses a phone on the same Wi-Fi can't
+            reach — picking the first interface blindly (the old behaviour) often returned exactly such a dead
+            address. Loopback, APIPA (169.254.x), carrier-grade-NAT (100.64–127.x) and tunnel interfaces are dropped.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.LanIp">
+      <summary>Best-effort single LAN IPv4 (the top-ranked of <see cref="M:ODDGames.Scripting.Unity.ScriptIdeServerHost.LanIps" />), or null.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.ScriptRuntime">
+      <summary>
+             Reusable Unity driver for the engine-agnostic <see cref="T:ODDGames.Scripting.ScriptBehaviourManager" />. A hidden MonoBehaviour that:
+             ticks every registered script each frame (gated by a host "is playing" predicate, so scripts run only
+             while the game is in its play state), marshals background-thread work — e.g. the IDE's attach
+             handler — onto the Unity main thread, and fans game events out to scripts.
+            
+             <para>A host game creates one with <see cref="M:ODDGames.Scripting.Unity.ScriptRuntime.Create(ODDGames.Scripting.IScriptObjectHost,ODDGames.Scripting.ScriptCompileOptions,System.String,System.Func{System.Boolean},System.Action{System.String,System.String})" />, passing its <see cref="T:ODDGames.Scripting.IScriptObjectHost" />
+             (object listing + attach for the IDE), compile options, the injected-field preamble
+             (<see cref="F:ODDGames.Scripting.Unity.UnityScriptConventions.InjectedFields" />), and an is-playing gate. Scripted objects then
+             register themselves and route their Unity callbacks through here. Everything Unity-specific but
+             game-agnostic lives here, so a host only writes its own object/event glue.</para></summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.ScriptRuntime.Manager">
+      <summary>The underlying engine-agnostic manager (for hosts that need the IDE catalog/attach hooks).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.Create(ODDGames.Scripting.IScriptObjectHost,ODDGames.Scripting.ScriptCompileOptions,System.String,System.Func{System.Boolean},System.Action{System.String,System.String})">
+      <summary>
+            Spin up the runtime. <paramref name="host" /> supplies the IDE Objects-tab listing/attach;
+            <paramref name="injectedFields" /> are the typed context fields (e.g.
+            <see cref="F:ODDGames.Scripting.Unity.UnityScriptConventions.InjectedFields" />); <paramref name="isPlaying" /> gates per-frame
+            ticking (null → always tick). The runtime lives until <see cref="M:ODDGames.Scripting.Unity.ScriptRuntime.Close" />, or until play mode exits or
+            the application quits.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.Close">
+      <summary>Stop every registered script and destroy the runtime's object.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.Register(ODDGames.Scripting.IScriptedObject)">
+      <summary>Start running a scripted object's script (Start + per-frame Update).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.Unregister(System.String)">
+      <summary>Stop and tear down a scripted object's script.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.Send(System.String,System.String,System.Object[])">
+      <summary>Dispatch one object's own callback (e.g. its collision/trigger) to its script.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.Raise(System.String,System.Object[])">
+      <summary>Broadcast a global game event to every running script.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.ScriptRuntime.RunOnMainThread``1(System.Func{``0},System.Int32)">
+      <summary>
+            Run <paramref name="fn" /> on the Unity main thread and block (with timeout) for its result —
+            for background-thread callers like the IDE's <c>EnumerateObjects</c>/<c>Attach</c>, which must
+            touch the scene. Returns <c>default</c> on timeout.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.UnityMainThread">
+      <summary>
+            Work for Unity's main thread from the IDE's and the network's threads, run each frame by <see cref="T:ODDGames.Scripting.Unity.ScriptRuntime" />
+            and <see cref="T:ODDGames.Scripting.Unity.Modding.ModRuntime" />.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Unity.UnityMainThread.IsMainThread">
+      <summary>True on the thread the runtimes' frames run on (known from their first frame).</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.UnityMainThread.Post(System.Action)">
+      <summary>Run <paramref name="work" /> on the main thread next frame, without waiting.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.UnityMainThread.Run``1(System.Func{``0},System.Int32)">
+      <summary>
+            Run <paramref name="fn" /> on the main thread and wait for its result; <c>default</c> on timeout or when it throws (logged).
+            On the main thread it runs at once.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Unity.UnityScriptConventions">
+      <summary>
+            Shared conventions for Unity scripts so every host presents the same MonoBehaviour-style surface:
+            the typed context fields injected into a class-less script body, and the standard MonoBehaviour
+            callbacks a script can declare (for the IDE's catalog / "Events" list). A host appends its own
+            game-specific events to <see cref="M:ODDGames.Scripting.Unity.UnityScriptConventions.StandardCallbacks" />.
+            </summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Unity.UnityScriptConventions.InjectedFields">
+      <summary>
+            Field declarations injected ahead of a class-less script body so it reads <c>gameObject</c> and
+            <c>transform</c> exactly like a MonoBehaviour. Pass as the runtime's <c>injectedFields</c> and as
+            the IDE's <c>ScriptPreamble</c> (so they autocomplete and aren't flagged "undefined").
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.UnityScriptConventions.StandardCallbacks">
+      <summary>The standard Unity MonoBehaviour callbacks, as IDE catalog descriptors.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.UnityScriptConventions.DefaultCompileOptions(System.String[])">
+      <summary>
+            A <see cref="T:ODDGames.Scripting.ScriptCompileOptions" /> seeded with the implicit usings every Unity script wants
+            (<c>UnityEngine</c>, <c>System.Collections.Generic</c>) plus any host extras. Use for both the
+            runtime and the IDE so authored and running code resolve the same types.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.UnityScriptConventions.WorkspacePath(UnityEngine.GameObject,System.String,System.String)">
+      <summary>
+            A stable, filesystem-safe workspace-relative path for a scene object's editable script file —
+            e.g. <c>Objects/Crate__1A2B.cs</c> — derived from the object's name + instance id.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Unity.UnityScriptConventions.ResourceLoader(System.String)">
+      <summary>A <c>ScriptTemplateCatalog</c> loader reading <c>TextAsset</c>s under <c>Resources/</c><paramref name="root" />, e.g. <c>"ScriptTemplates/"</c>.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Ui.Icon">
+      <summary>
+        <c>&lt;odd:Icon icon="heart" stroke-width="2" tint="#ffffff"&gt;</c>: a lucide.dev icon in the element's USS colour.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Icon.IconId">
+      <summary>The lucide id, e.g. <c>heart</c>.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Icon.StrokeWidth">
+      <summary>In the icon's 24-unit grid; NaN keeps lucide's 2. <c>--stroke-width</c> wins over it.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Ui.Shape">
+      <summary>
+        <c>&lt;odd:Shape kind="…"&gt;</c>: one of <see cref="F:ODDGames.Scripting.Modding.ShapeGeometry.Kinds" /> filling the content box. Fill defaults to the USS
+            <c>color</c>; a line strokes in it instead. Number properties are NaN while unset, which keeps the kind's own default.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Shape.Fill">
+      <summary>A colour, or <c>none</c>; unset uses the USS colour.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Shape.Value">
+      <summary>0..1, how much of an arc is drawn or where a needle points; a <c>binding-path</c> field drives it.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Shape.Smoothing">
+      <summary>Seconds the drawn value takes to catch up with a new <see cref="P:ODDGames.Scripting.Ui.Shape.Value" /> (63% of the way); unset or 0 jumps.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Ui.Stack">
+      <summary>
+        <c>&lt;odd:Stack direction="row|column" gap="8"&gt;</c>: children in a row or column with <c>gap</c> px between them (USS has no gap), as leading margins.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Ui.SvgSources">
+      <summary>Finds the drawing of an <see cref="T:ODDGames.Scripting.Ui.Svg" /> Unity built from a UXML asset, e.g. the editor reading <c>&lt;uxml folder&gt;/assets/*.svg</c>.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Ui.SvgSources.Resolve">
+      <summary>(element, its <c>src</c>) → the parsed file, or null. Null outside the editor: the game hands each Svg its document.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Ui.Svg">
+      <summary>
+        <c>&lt;odd:Svg src="assets/logo.svg" tint="#ffffff" preserve-aspect-ratio="meet|slice|none"&gt;</c>: an SVG of the mod drawn into the content box.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Svg.PreserveAspectRatio">
+      <summary>meet (fit inside, the default), slice (cover; give the element overflow: hidden to crop) or none (stretch).</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.Svg.Document">
+      <summary>The drawing; set by the game, or looked up through <see cref="F:ODDGames.Scripting.Ui.SvgSources.Resolve" /> for a UXML asset.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Ui.VectorElement">
+      <summary>
+            A UI element drawn as vectors with Painter2D. <c>currentColor</c> is the element's resolved USS <c>color</c>; the custom
+            properties <c>--fill</c>, <c>--stroke</c>, <c>--stroke-width</c> and <c>--tint</c> override it, from a stylesheet
+            (<see cref="T:UnityEngine.UIElements.CustomStyleResolvedEvent" />) or from the SDK's own cascade (<see cref="M:ODDGames.Scripting.Ui.VectorElement.SetCustomStyle(System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})" />).
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Ui.VectorElement.Tint">
+      <summary>Multiplies every colour drawn, e.g. <c>#ffffff80</c> for half opacity; <c>--tint</c> wins over it.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Ui.VectorElement.SetCustomStyle(System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+      <summary>The <c>--*</c> values of a cascade the SDK resolved itself (runtime UI cannot load USS); absent keys clear them.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Ui.VectorElement.Parse(System.String)">
+      <summary>A colour attribute or custom property; null for <c>none</c>, empty or unreadable text.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Ui.VectorElement.DrawDocument(UnityEngine.UIElements.MeshGenerationContext,UnityEngine.Rect,ODDGames.Scripting.Modding.SvgDocument,System.String,System.Nullable{System.Double})">
+      <summary>Draw <paramref name="doc" /> fitted into <paramref name="box" /> (centred; meet, slice or none) with currentColor paints taking --fill / --stroke.</summary>
+    </member>
+  </members>
+</doc>

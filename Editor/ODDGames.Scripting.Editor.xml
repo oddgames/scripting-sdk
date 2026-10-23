@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<doc>
+  <assembly>
+    <name>ODDGames.Scripting.Editor</name>
+  </assembly>
+  <members>
+    <member name="T:ODDGames.Scripting.Editor.ScriptBundleProfileProvider">
+      <summary>
+            What a game tells the bundle build: its registered id and its scripting setup. Derive exactly one class in an
+            editor assembly; it is found with <see cref="T:UnityEditor.TypeCache" />.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Editor.ScriptBundleProfileProvider.GameId">
+      <summary>The id the game is registered with on the server.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Editor.ScriptBundleProfileProvider.Config">
+      <summary>
+            The manifest's <c>scriptConfig</c>, built from the live game code (e.g. <c>ScriptingProfile.ToBundleConfig()</c>). For AI
+            help include <see cref="F:ODDGames.Scripting.Hosted.ScriptBundleConfig.Ai" />: the guide, the kinds with a short <see cref="F:ODDGames.Scripting.Hosted.ScriptBundleKind.Contract" /> each, and the templates.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Editor.ScriptBundleProfileProvider.Server">
+      <summary>The server; the <c>SCRIPT_EDITOR_SERVER</c> environment variable overrides it.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.Editor.ScriptBundleProfileProvider.EditorPrefsPrefix">
+      <summary>Prefix of the EditorPrefs keys that remember the editor bundle.</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Editor.ScriptBundleBuild">
+      <summary>
+            Player builds: stage the player script assemblies, engine modules and plugins with their manifest right after
+            the scripts compile, stamp the bundle id into the first scene, and after a successful build zip and upload the
+            bundle. The menu does the same for the editor's own assemblies. A failed upload never fails the build.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Editor.ScriptUiAllocationCheck">
+      <summary>
+            Play-mode check that each case's script UI makes no garbage per frame: the player loop drives the panel
+            (never driven by hand, which crashes the editor's render thread), bindings change every frame, and the profiler's
+            per-marker GC and time are read back over three rounds, the best round counting, with the call stack of every allocation
+            in a round whose panel allocated (clearing the Profiler window's frames). Results go to <see cref="P:ODDGames.Scripting.Editor.ScriptUiAllocationCheck.ResultPath" /> and the console.
+            The game gives the cases (a script and its UI files each), its script loader, its panel settings and its script UI look.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.Editor.ScriptUiAllocationCheck.Run(System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.String,System.Collections.Generic.Dictionary{System.String,System.String}}},ODDGames.Scripting.Modding.ModScriptLoader,System.Func{UnityEngine.UIElements.PanelSettings},System.Action{ODDGames.Scripting.Unity.Modding.UiToolkitSurface})">
+      <summary>Check each case with a UXML file in play mode: <paramref name="cases" /> are (key, script source, UI files by path).</summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Editor.SvgAssetSources">
+      <summary>Lets UI Builder and the UXML importer draw <c>odd:Svg src="assets/x.svg"</c>: the file next to the element's UXML asset.</summary>
+    </member>
+  </members>
+</doc>
