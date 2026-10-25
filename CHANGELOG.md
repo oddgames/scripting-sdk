@@ -2,6 +2,11 @@
 
 All notable changes to this package are documented in this file.
 
+## [1.0.1] - 2026-10-25
+
+### Changed
+- Debug hooks (opt-in via ScriptCompileOptions.DebugHooks): IScriptDebugHook hears every statement (awaitable, so a host can park an async script before a line) and every exception no script catch will handle, answering Throw / Retry / Skip / Defer; ScriptDebugFrame exposes the line, method and read-only locals. Fixed: async catch/break/continue/return-through-finally leaving stale try handlers registered.
+
 ## [1.0.0]
 
 ### Added

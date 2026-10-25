@@ -1,6 +1,6 @@
 {
   "name": "au.com.oddgames.scripting",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "ODDGames Scripting",
   "description": "Embedded C#-subset scripting for Unity. IL2CPP-safe bytecode VM, sandboxed trust levels, reflection-based interop and an in-game browser IDE.",
   "unity": "6000.0",

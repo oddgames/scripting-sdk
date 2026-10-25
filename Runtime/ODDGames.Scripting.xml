@@ -558,6 +558,35 @@
     <member name="F:ODDGames.Scripting.Bytecode.OpCode.CallStaticDynamic">
       <summary>Call a static .NET method picked at run time by the argument values: [typeIdx u16, nameIdx u16, argCount u8]. Emitted when overloads share the arity and an argument's type is unknown.</summary>
     </member>
+    <member name="F:ODDGames.Scripting.Bytecode.OpCode.Debug">
+      <summary>
+            Debug-hook call, only emitted with <see cref="P:ODDGames.Scripting.ScriptCompileOptions.DebugHooks" />: [op u8, operands per <see cref="T:ODDGames.Scripting.Bytecode.DebugOp" />].
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.Bytecode.DebugOp">
+      <summary>Sub-operation of <see cref="F:ODDGames.Scripting.Bytecode.OpCode.Debug" />. Stack effects are listed per member.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.Enter">
+      <summary>[nameIdx u16, typeIdx u16 (0xFFFF none), flags u8]. Pushes the method's debug frame, or null when no hook is attached. Flag 1 = async state machine (locals[0] is the state machine).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.Step">
+      <summary>[line i32, column u16, contextIdx u16, scopeIdx u16 (0xFFFF none), flags u8]. Pops the frame, pushes the pause task to await or null. Flag 1 = the statement can pause.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.EndStep">
+      <summary>Pops the frame; after an awaited pause, rethrows the hook's failure if its task faulted.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.Fault">
+      <summary>Same operands as <see cref="F:ODDGames.Scripting.Bytecode.DebugOp.Step" />. Pops exception + frame, pushes the decision task to await or null.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.Decide">
+      <summary>Pops exception + frame. Pushes true to retry the statement, false to skip it; otherwise rethrows.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.Leave">
+      <summary>Pops the frame: the method is returning.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.Bytecode.DebugOp.Unwind">
+      <summary>Pops exception + frame: the method is ending by that exception. Closes the frame and rethrows it with its original stack trace.</summary>
+    </member>
     <member name="T:ODDGames.Scripting.CompiledScript">
       <summary>
             A compiled script. Reusable across calls. Each <see cref="M:ODDGames.Scripting.CompiledScript.Evaluate(ODDGames.Scripting.ScriptHost)" /> call uses
@@ -4047,6 +4076,22 @@
             collisions are the caller's responsibility in that mode.
             </summary>
     </member>
+    <member name="P:ODDGames.Scripting.ScriptCompileOptions.DebugHooks">
+      <summary>
+             Compile the script so an <see cref="T:ODDGames.Scripting.IScriptDebugHook" /> attached through
+             <see cref="M:ODDGames.Scripting.ScriptDebugger.Attach(ODDGames.Scripting.IScriptDebugHook)" /> sees it statement by statement: the hook is told
+             before each statement runs (and, in async methods, can park the script there by
+             returning an incomplete task), and an exception escaping a statement is offered to it
+             before the script unwinds, to rethrow, retry the statement or skip it.
+            
+             <para>Reported: the statements of the script's top-level code, of its top-level
+             functions and of its class methods, recursing into if / loop / try / catch / finally /
+             switch / using / block bodies. Not reported: lambda bodies, constructors, property and
+             indexer accessors, expression-bodied members, iterators (<c>yield</c>), and bodies
+             containing <c>goto</c> or a label. Synchronous code, and <c>switch</c> sections inside
+             async methods, report but cannot pause.</para><para>Off by default; when off the emitted code is unchanged. A script compiled with it
+             but run with no hook attached pays one call per statement that returns at once.</para></summary>
+    </member>
     <member name="P:ODDGames.Scripting.ScriptCompileOptions.GlobalNames">
       <summary>
             Names the host exposes as globals (see <see cref="P:ODDGames.Scripting.ScriptHost.Globals" />). An
@@ -4127,6 +4172,130 @@
              Useful for diagnostic logging — projects without TextMeshPro will
              see a slightly smaller count than projects with it, which is
              fine.</para></summary>
+    </member>
+    <member name="T:ODDGames.Scripting.ScriptDebugger">
+      <summary>
+            Host-side debugger for scripts compiled with <see cref="P:ODDGames.Scripting.ScriptCompileOptions.DebugHooks" />.
+            Attach a hook around the call that starts a script (<see cref="M:ODDGames.Scripting.CompiledScript.Evaluate(ODDGames.Scripting.ScriptHost)" />,
+            <see cref="M:ODDGames.Scripting.CompiledScript.Invoke(System.String,System.Object[])" />, a <see cref="T:ODDGames.Scripting.ScriptInstance" /> method, ...):
+            <code>
+            using (ScriptDebugger.Attach(hook))
+                task = (Task)script.Evaluate();
+            </code>
+            Every debuggable method entered while the scope is open gets a <see cref="T:ODDGames.Scripting.ScriptDebugFrame" />
+            tied to the hook, and keeps it for its whole life: an async method resumed after the scope
+            closed still reports to the same hook, as do the debuggable methods it calls.
+            Scripts compiled without <see cref="P:ODDGames.Scripting.ScriptCompileOptions.DebugHooks" /> never call the hook.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.ScriptDebugger.Attach(ODDGames.Scripting.IScriptDebugHook)">
+      <summary>
+            Route debuggable scripts started on this thread to <paramref name="hook" /> until the
+            returned scope is disposed. Scopes nest; the innermost wins, and a script already
+            running keeps the hook it started with.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.IScriptDebugHook">
+      <summary>
+            Receives a debuggable script's statements and exceptions. See
+            <see cref="P:ODDGames.Scripting.ScriptCompileOptions.DebugHooks" /> for which statements are reported.
+            Both methods run on the script's thread, synchronously, at the point described.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.IScriptDebugHook.OnStatement(ODDGames.Scripting.ScriptDebugFrame)">
+      <summary>
+            Called before each statement runs, with <see cref="P:ODDGames.Scripting.ScriptDebugFrame.Line" /> set to it.
+            Return null or a completed task to run it now. When <see cref="P:ODDGames.Scripting.ScriptDebugFrame.CanPause" />
+            is true, returning an incomplete task parks the script before the statement until the
+            task completes (step / breakpoint); elsewhere an incomplete task is not waited for.
+            Faulting or cancelling the task (or throwing here) aborts the script with that
+            exception, which is never offered to <see cref="M:ODDGames.Scripting.IScriptDebugHook.OnFault(ODDGames.Scripting.ScriptDebugFrame,System.Exception)" />.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.IScriptDebugHook.OnFault(ODDGames.Scripting.ScriptDebugFrame,System.Exception)">
+      <summary>
+            Called when <paramref name="exception" /> escapes the statement at
+            <see cref="P:ODDGames.Scripting.ScriptDebugFrame.Line" /> and no <c>catch</c> in the script would handle it,
+            before the script unwinds past the statement. The task's result decides what happens
+            (null means <see cref="F:ODDGames.Scripting.ScriptFaultAction.Throw" />). When
+            <see cref="P:ODDGames.Scripting.ScriptDebugFrame.CanPause" /> is true the script waits for the task, so the host
+            can park the run while it repairs the situation; elsewhere a task that is not already
+            complete counts as <see cref="F:ODDGames.Scripting.ScriptFaultAction.Defer" />. Faulting or cancelling the task
+            (or throwing here) aborts the script with that exception instead.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.ScriptFaultAction">
+      <summary>What a debuggable script does with an exception the hook was offered.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.ScriptFaultAction.Throw">
+      <summary>Let it propagate as if no hook were attached; enclosing statements are not offered it again.</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.ScriptFaultAction.Retry">
+      <summary>Run the statement again from its start (its earlier side effects are not undone; a retried <c>for</c> runs its initializer again).</summary>
+    </member>
+    <member name="F:ODDGames.Scripting.ScriptFaultAction.Skip">
+      <summary>
+            Carry on with the statement after it. A skipped declaration leaves its variables at their
+            default value (null for <c>var</c> in an async method). Skipping a compound statement (if,
+            loop, try, switch: offered for a fault in its own condition, or after a <see cref="F:ODDGames.Scripting.ScriptFaultAction.Defer" />
+            from inside it) abandons the rest of it.
+            </summary>
+    </member>
+    <member name="F:ODDGames.Scripting.ScriptFaultAction.Defer">
+      <summary>
+            Let it propagate out of this statement, offering it again at the enclosing statement
+            (in this method, or the statement that called this method) — e.g. to skip a whole helper
+            call instead of one line in it, or to decide in a frame that can pause.
+            </summary>
+    </member>
+    <member name="T:ODDGames.Scripting.ScriptDebugFrame">
+      <summary>
+            One running invocation of a debuggable method (or of a script's top-level statements,
+            named <c>&lt;main&gt;</c>), as seen by an <see cref="T:ODDGames.Scripting.IScriptDebugHook" />. The same instance
+            is passed for every statement of that invocation.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.Parent">
+      <summary>The debuggable invocation that called this one; null at the root, or when the caller isn't debuggable.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.MethodName">
+      <summary>The method's name, or <c>&lt;main&gt;</c> for a script's top-level statements.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.TypeName">
+      <summary>The script class declaring the method; null for top-level statements and functions.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.Line">
+      <summary>1-based source line of the statement being reported.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.Column">
+      <summary>1-based source column of the statement being reported.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.IsAsync">
+      <summary>True for an async method, whose statements can park on the hook's tasks.</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.CanPause">
+      <summary>
+            Whether the script waits for the hook's task at the statement being reported. True in
+            async methods, except inside a <c>switch</c> section there.
+            </summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.IsActive">
+      <summary>False once the invocation has returned or thrown out of its method (for an async method: once its task has completed).</summary>
+    </member>
+    <member name="P:ODDGames.Scripting.ScriptDebugFrame.This">
+      <summary>The instance the method runs on (a script object), or null for static code.</summary>
+    </member>
+    <member name="M:ODDGames.Scripting.ScriptDebugFrame.GetLocals">
+      <summary>
+            Snapshot of the invocation's parameters and locals by name (read-only). In a
+            synchronous method these are the variables in scope at the reported statement and are
+            only readable while the frame <see cref="P:ODDGames.Scripting.ScriptDebugFrame.IsActive" />; in an async method they are all of
+            the method's variables (unassigned ones read as their default), and stay readable while
+            the method is parked or after it finishes.
+            </summary>
+    </member>
+    <member name="M:ODDGames.Scripting.ScriptDebugFrame.ToString">
+      <inheritdoc />
     </member>
     <member name="T:ODDGames.Scripting.ScriptDiagnostic">
       <summary>
